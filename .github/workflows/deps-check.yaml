@@ -28,7 +28,11 @@ jobs:
         id: check
         working-directory: app/go
         run: |
-          UPDATES=$(go list -m -u all 2>/dev/null | grep '\[' || true)
+          # `all` walks the whole module graph, including modules only required
+          # by a dependency's go.mod and never built here — those cannot be
+          # upgraded from this repo. List the modules actually reachable instead.
+          MODS=$(go list -deps -test -f '{{with .Module}}{{.Path}}{{end}}' ./... 2>/dev/null | sort -u | grep -v '^$')
+          UPDATES=$(go list -m -u $MODS 2>/dev/null | grep '\[' || true)
           if [ -z "$UPDATES" ]; then
             echo "has_updates=false" >> "$GITHUB_OUTPUT"
           else
@@ -62,5 +66,5 @@ jobs:
               repo: context.repo.repo,
               title: 'Go dependency updates available',
               labels: ['dependencies'],
-              body: `The following Go modules have newer versions available:\n\n\`\`\`\n${updates}\n\`\`\`\n\nTo update, run:\n\`\`\`sh\ncd app/go && go get -u ./... && go mod tidy && go mod vendor\n\`\`\``
+              body: `The following Go modules have newer versions available:\n\n\`\`\`\n${updates}\n\`\`\`\n\nTo update, run:\n\`\`\`sh\ncd app/go && go get -u ./... && go mod tidy\n\`\`\``
             });
