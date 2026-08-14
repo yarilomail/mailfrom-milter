@@ -18,7 +18,7 @@ WORKDIR /app
 
 COPY --from=builder /build/mailfrom-milter .
 
-USER nobody
+USER 65534:65534
 EXPOSE 10031/tcp
 
 CMD ["/app/mailfrom-milter"]
