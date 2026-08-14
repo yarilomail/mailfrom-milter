@@ -170,9 +170,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git tag "${{ steps.version.outputs.tag }}"
-          git push origin "${{ steps.version.outputs.tag }}"
+          # GITHUB_TOKEN may not push a ref whose range touches .github/workflows,
+          # and that scope cannot be granted to it. Let the release API create the
+          # tag instead — it points at a commit that already exists.
           gh release create "${{ steps.version.outputs.tag }}" \
+            --target "${{ github.sha }}" \
             --title "${{ steps.version.outputs.tag }}" \
             --notes-file RELEASE_NOTES.md
 
