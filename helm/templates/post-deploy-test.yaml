@@ -50,6 +50,10 @@ data:
         try:
             fn()
             ok = want_ok
+        except smtplib.SMTPRecipientsRefused as e:
+            ok = not want_ok
+            for rcpt, (code, text) in e.recipients.items():
+                print(f"  smtp error {code} for {rcpt}: {text}")
         except (smtplib.SMTPSenderRefused,
                 smtplib.SMTPDataError,
                 smtplib.SMTPResponseException) as e:
@@ -66,14 +70,15 @@ data:
         print(f"[{status}] {name}")
         results.append(ok)
 
-    # case 1: no auth (port 25, mynetworks) → accept
+    # case 1: port 25 without auth. mynetworks is loopback only, so nothing
+    # in the cluster relays without authenticating.
     def case1():
         s = smtplib.SMTP(HOST, PORT25, timeout=10)
         s.ehlo()
         s.sendmail(MAIL_FROM, [MAIL_TO], msg(MAIL_FROM, "test-1-no-auth"))
         s.quit()
 
-    run("case1: no auth → accept", True, case1)
+    run("case1: no auth → reject", False, case1)
 
     # case 2: auth user domain ≠ MAIL FROM domain → reject MFC010001
     def case2():
