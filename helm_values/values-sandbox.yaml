@@ -1,6 +1,6 @@
 image:
   repository: ghcr.io/yarilomail/mailfrom-milter
-  tag: "5a77f94"
+  tag: "36b99a9"
   pullPolicy: Always
 
 imagePullSecrets:
