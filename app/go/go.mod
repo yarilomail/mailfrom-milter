@@ -1,6 +1,6 @@
 module github.com/0kaba0hub/mailfrom-milter
 
-go 1.26.2
+go 1.26.10
 
 require (
 	github.com/0kaba0hub/go-milter v0.5.0
