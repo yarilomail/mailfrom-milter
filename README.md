@@ -159,6 +159,8 @@ rate(mailfrom_messages_total{action="reject"}[5m])
 | `MF_ACTION` | `reject` | `reject` / `discard` / `quarantine_header` / `accept` |
 | `REJECT_CODE` | `421` | SMTP reply code for `reject` action: `421` (temp) or `550` (perm) |
 | `MF_SENDER_ADD` | `no` | Set to `yes` to add `X-MF-Envelope-From` on accepted authenticated messages (`reject` and `discard` actions only) |
+| `MILTER_READ_TIMEOUT_SECONDS` | `3600` | A milter connection silent this long is closed; Postfix keeps one per SMTP session and is silent on it while the client sends |
+| `MILTER_WRITE_TIMEOUT_SECONDS` | `60` | A reply Postfix does not take this long closes the connection |
 | `LOG_LEVEL` | — | Set to `debug` for verbose per-message logging |
 
 ---

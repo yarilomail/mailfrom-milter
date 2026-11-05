@@ -3,7 +3,7 @@ module github.com/0kaba0hub/mailfrom-milter
 go 1.27.3
 
 require (
-	github.com/0kaba0hub/go-milter v0.5.0
+	github.com/0kaba0hub/go-milter v0.5.1
 	github.com/prometheus/client_golang v1.25.0
 )
 
