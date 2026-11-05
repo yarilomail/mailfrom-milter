@@ -6,11 +6,11 @@
 
 Postfix **milter** written in Go that enforces alignment between the SMTP envelope sender (`MAIL FROM`) and the `From:` message header.
 
-Licensed under **AGPLv3** — see [LICENSE](LICENSE).
+Licensed under **AGPLv3**, see [LICENSE](LICENSE).
 
 [![CI](https://github.com/yarilomail/mailfrom-milter/actions/workflows/ci.yaml/badge.svg)](https://github.com/yarilomail/mailfrom-milter/actions/workflows/ci.yaml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](LICENSE)
-[![Go version](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)](app/go/go.mod)
+[![Go version](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go)](app/go/go.mod)
 [![Container](https://img.shields.io/badge/ghcr.io-mailfrom--milter-blue?logo=github)](https://github.com/yarilomail/mailfrom-milter/pkgs/container/mailfrom-milter)
 [![Docker Hub](https://img.shields.io/docker/pulls/0kaba0/mailfrom-milter?logo=docker&logoColor=white)](https://hub.docker.com/r/0kaba0/mailfrom-milter)
 
@@ -165,9 +165,9 @@ rate(mailfrom_messages_total{action="reject"}[5m])
 
 ## Stack
 
-- Go 1.26
-- [`0kaba0hub/go-milter`](https://github.com/0kaba0hub/go-milter) v0.5.0 — fork of `emersion/go-milter` with `slog` logging and `sync.Pool` write buffer (module renamed to `github.com/0kaba0hub/go-milter`)
-- [`0kaba0hub/go-message`](https://github.com/0kaba0hub/go-message) v0.19.0 — fork of `emersion/go-message` (indirect dep of go-milter, module renamed to `github.com/0kaba0hub/go-message`)
+- Go 1.27
+- [`0kaba0hub/go-milter`](https://github.com/0kaba0hub/go-milter) v0.5.0: fork of `emersion/go-milter` with `slog` logging and `sync.Pool` write buffer (module renamed to `github.com/0kaba0hub/go-milter`)
+- [`0kaba0hub/go-message`](https://github.com/0kaba0hub/go-message) v0.19.0: fork of `emersion/go-message` (indirect dep of go-milter, module renamed to `github.com/0kaba0hub/go-message`)
 - Both forks have weekly upstream release monitors
 - Alpine 3.24 runtime image
 
