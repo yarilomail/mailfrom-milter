@@ -92,10 +92,10 @@ func TestExtractDomainFromHeader(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLoadConfig_Defaults(t *testing.T) {
-	os.Unsetenv("LISTEN_ADDR")
-	os.Unsetenv("METRICS_ADDR")
-	os.Unsetenv("MF_ACTION")
-	os.Unsetenv("REJECT_CODE")
+	_ = os.Unsetenv("LISTEN_ADDR")
+	_ = os.Unsetenv("METRICS_ADDR")
+	_ = os.Unsetenv("MF_ACTION")
+	_ = os.Unsetenv("REJECT_CODE")
 
 	c := loadConfig()
 
@@ -242,7 +242,7 @@ func TestObservabilityServer(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GET %s: %v", path, err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		_, _ = io.Copy(io.Discard, resp.Body)
 		return resp.StatusCode
 	}

@@ -397,7 +397,8 @@ func main() {
 		slog.Error("listen failed", "addr", cfg.listenAddr, "err", err)
 		os.Exit(1)
 	}
-	defer ln.Close()
+	// Serve and server.Close close it first; this one only reports a double close.
+	defer func() { _ = ln.Close() }()
 
 	var readiness atomic.Bool
 	readiness.Store(true)
@@ -419,5 +420,7 @@ func main() {
 
 	slog.Info("shutting down")
 	readiness.Store(false)
-	server.Close()
+	if err := server.Close(); err != nil {
+		slog.Warn("shutdown: closing the listener", "err", err)
+	}
 }
