@@ -44,8 +44,8 @@ func startTestServer(t *testing.T, action, rejectCode string) string {
 	go func() { _ = srv.Serve(ln) }()
 
 	t.Cleanup(func() {
-		srv.Close()
-		ln.Close()
+		_ = srv.Close()
+		_ = ln.Close()
 	})
 
 	return ln.Addr().String()
@@ -142,7 +142,7 @@ func sendMessage(t *testing.T, addr, authUser, envelopeFrom, fromHeader string) 
 	if err != nil {
 		t.Fatalf("session: %v", err)
 	}
-	defer sess.Close()
+	defer func() { _ = sess.Close() }()
 
 	if err := sess.Macros(milter.CodeConn, "{client_addr}", "127.0.0.1"); err != nil {
 		t.Fatalf("macros conn: %v", err)

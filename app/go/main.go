@@ -19,6 +19,7 @@
 package main
 
 import (
+	"errors"
 	"log/slog"
 	"net"
 	"net/textproto"
@@ -397,7 +398,8 @@ func main() {
 		slog.Error("listen failed", "addr", cfg.listenAddr, "err", err)
 		os.Exit(1)
 	}
-	defer ln.Close()
+	// Serve and server.Close close it first; this one only reports a double close.
+	defer func() { _ = ln.Close() }()
 
 	var readiness atomic.Bool
 	readiness.Store(true)
@@ -405,7 +407,8 @@ func main() {
 	go startObservability(cfg.metricsAddr, &readiness)
 
 	go func() {
-		if err := server.Serve(ln); err != nil {
+		// After server.Close, Serve returns ErrServerClosed: a clean stop, not a failure.
+		if err := server.Serve(ln); err != nil && !errors.Is(err, milter.ErrServerClosed) {
 			slog.Error("server stopped", "err", err)
 			os.Exit(1)
 		}
@@ -419,5 +422,7 @@ func main() {
 
 	slog.Info("shutting down")
 	readiness.Store(false)
-	server.Close()
+	if err := server.Close(); err != nil {
+		slog.Warn("shutdown: closing the listener", "err", err)
+	}
 }
