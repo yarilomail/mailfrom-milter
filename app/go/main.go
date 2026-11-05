@@ -19,6 +19,7 @@
 package main
 
 import (
+	"errors"
 	"log/slog"
 	"net"
 	"net/textproto"
@@ -406,7 +407,8 @@ func main() {
 	go startObservability(cfg.metricsAddr, &readiness)
 
 	go func() {
-		if err := server.Serve(ln); err != nil {
+		// After server.Close, Serve returns ErrServerClosed: a clean stop, not a failure.
+		if err := server.Serve(ln); err != nil && !errors.Is(err, milter.ErrServerClosed) {
 			slog.Error("server stopped", "err", err)
 			os.Exit(1)
 		}

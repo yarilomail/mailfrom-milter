@@ -1,6 +1,6 @@
 apiVersion: v2
 name: mailfrom-milter
-description: Postfix milter — From-header / envelope-from domain alignment check
+description: Postfix milter that checks From-header and envelope-from domain alignment
 type: application
 version: 1.1.12
 appVersion: "1.3.14"
