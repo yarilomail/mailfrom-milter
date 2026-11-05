@@ -7,11 +7,13 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/0kaba0hub/go-milter"
 	"github.com/prometheus/client_golang/prometheus"
@@ -26,9 +28,11 @@ func startTestServer(t *testing.T, action, rejectCode string) string {
 	t.Helper()
 
 	cfg = config{
-		listenAddr: "127.0.0.1:0",
-		action:     action,
-		rejectCode: rejectCode,
+		listenAddr:  "127.0.0.1:0",
+		action:      action,
+		rejectCode:  rejectCode,
+		milterRead:  time.Minute,
+		milterWrite: time.Minute,
 	}
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -36,10 +40,7 @@ func startTestServer(t *testing.T, action, rejectCode string) string {
 		t.Fatalf("listen: %v", err)
 	}
 
-	srv := &milter.Server{
-		NewMilter: func() milter.Milter { return &milterSession{} },
-		Actions:   milter.OptAddHeader,
-	}
+	srv := newMilterServer(cfg)
 
 	go func() { _ = srv.Serve(ln) }()
 
@@ -590,4 +591,25 @@ func TestMetrics(t *testing.T) {
 			t.Errorf("connections delta = %v, want 1", d)
 		}
 	})
+}
+
+// The server main() starts closes a connection that stays silent past
+// MILTER_READ_TIMEOUT_SECONDS.
+func TestMilterServerClosesASilentConnection(t *testing.T) {
+	srv := newMilterServer(config{milterRead: 200 * time.Millisecond, milterWrite: time.Second})
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { _ = srv.Close() })
+	conn, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close() }()
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	if _, err := conn.Read(make([]byte, 1)); err == nil || errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Errorf("a silent connection: %v, want it closed by the server", err)
+	}
 }

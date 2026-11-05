@@ -9,8 +9,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
+	"strconv"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // ---------------------------------------------------------------------------
@@ -210,9 +213,9 @@ func TestRunChecks(t *testing.T) {
 
 func TestRejectWith(t *testing.T) {
 	cases := []struct {
-		rejectCode  string
-		mfCode      string
-		wantPrefix  string
+		rejectCode string
+		mfCode     string
+		wantPrefix string
 	}{
 		{"421", "MFC010001", "421 4.7.1 "},
 		{"550", "MFC010002", "550 5.7.1 "},
@@ -276,4 +279,57 @@ func TestObservabilityServer(t *testing.T) {
 			t.Errorf("GET /metrics = %d, want 200", got)
 		}
 	})
+}
+
+// The milter timeouts: 3600 s and 60 s by default, read from the
+// environment, and anything but a whole number above zero falls back.
+func TestLoadConfig_MilterTimeouts(t *testing.T) {
+	c := loadConfig()
+	if c.milterRead != time.Hour || c.milterWrite != time.Minute {
+		t.Errorf("defaults %v / %v, want 1h / 1m", c.milterRead, c.milterWrite)
+	}
+	t.Setenv("MILTER_READ_TIMEOUT_SECONDS", "900")
+	t.Setenv("MILTER_WRITE_TIMEOUT_SECONDS", "30")
+	if c = loadConfig(); c.milterRead != 15*time.Minute || c.milterWrite != 30*time.Second {
+		t.Errorf("from the environment %v / %v, want 15m / 30s", c.milterRead, c.milterWrite)
+	}
+	for _, bad := range []string{"0", "-5", "abc", "1.5"} {
+		t.Setenv("MILTER_READ_TIMEOUT_SECONDS", bad)
+		if c = loadConfig(); c.milterRead != time.Hour {
+			t.Errorf("MILTER_READ_TIMEOUT_SECONDS=%q gave %v, want the default 1h", bad, c.milterRead)
+		}
+	}
+}
+
+// The chart's defaults are the code's and reach the container as the
+// variables loadConfig reads.
+func TestChartTimeoutDefaultsMatchTheCode(t *testing.T) {
+	values, err := os.ReadFile("../../helm/values.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl, err := os.ReadFile("../../helm/templates/deployment.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		value, env string
+		want       int
+	}{
+		{"milterReadTimeoutSeconds", "MILTER_READ_TIMEOUT_SECONDS", defaultMilterRead},
+		{"milterWriteTimeoutSeconds", "MILTER_WRITE_TIMEOUT_SECONDS", defaultMilterWrite},
+	} {
+		m := regexp.MustCompile(`(?m)^` + tc.value + `: (\d+)$`).FindSubmatch(values)
+		if m == nil {
+			t.Errorf("%s not in values.yaml", tc.value)
+			continue
+		}
+		if string(m[1]) != strconv.Itoa(tc.want) {
+			t.Errorf("%s = %s in values.yaml, %d in the code", tc.value, m[1], tc.want)
+		}
+		wire := regexp.MustCompile(`- name: ` + tc.env + `\n\s+value: "?\{\{ \.Values\.` + tc.value + ` \| quote \}\}"?`)
+		if !wire.Match(tmpl) {
+			t.Errorf("deployment.yaml does not pass %s as %s", tc.value, tc.env)
+		}
+	}
 }

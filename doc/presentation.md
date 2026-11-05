@@ -92,6 +92,7 @@ Headers added for `quarantine_header` action:
 | `LISTEN_ADDR` | `0.0.0.0:10031` | TCP address to listen on |
 | `MF_ACTION` | `reject` | `reject` / `discard` / `quarantine_header` / `accept` |
 | `REJECT_CODE` | `421` | SMTP reply code for reject: `421` (temp) or `550` (permanent) |
+| `MILTER_READ_TIMEOUT_SECONDS` / `MILTER_WRITE_TIMEOUT_SECONDS` | `3600` / `60` | milter connection timeouts |
 | `LOG_LEVEL` | --- | Set to `debug` for verbose per-message logging |
 
 ## Deploy

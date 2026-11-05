@@ -25,9 +25,11 @@ import (
 	"net/textproto"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/0kaba0hub/go-milter"
 )
@@ -45,6 +47,11 @@ const (
 	defaultListenAddr  = "0.0.0.0:10031"
 	defaultMetricsAddr = "0.0.0.0:8081"
 	defaultAction      = actionReject
+	// Postfix keeps one milter connection for a whole SMTP session and is
+	// silent on it while the client sends, so the read timeout outlasts any
+	// session; it only frees connections nobody will use again.
+	defaultMilterRead  = 3600
+	defaultMilterWrite = 60
 
 	headerEnvelopeFrom = "X-MF-Envelope-From"
 	headerFrom         = "X-MF-From"
@@ -57,6 +64,8 @@ type config struct {
 	action      string
 	rejectCode  string
 	mfSender    bool
+	milterRead  time.Duration
+	milterWrite time.Duration
 }
 
 func loadConfig() config {
@@ -66,6 +75,8 @@ func loadConfig() config {
 		action:      strings.ToLower(envOrDefault("MF_ACTION", defaultAction)),
 		rejectCode:  envOrDefault("REJECT_CODE", "421"),
 		mfSender:    strings.ToLower(os.Getenv("MF_SENDER_ADD")) == "yes",
+		milterRead:  seconds("MILTER_READ_TIMEOUT_SECONDS", defaultMilterRead),
+		milterWrite: seconds("MILTER_WRITE_TIMEOUT_SECONDS", defaultMilterWrite),
 	}
 	switch cfg.action {
 	case actionReject, actionDiscard, actionQuarantineHeader, actionDunno:
@@ -78,6 +89,30 @@ func loadConfig() config {
 		cfg.rejectCode = "421"
 	}
 	return cfg
+}
+
+// seconds reads a whole number of seconds above zero; anything else falls
+// back to def with a warning, as the other settings do.
+func seconds(key string, def int) time.Duration {
+	v := envOrDefault(key, strconv.Itoa(def))
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		slog.Warn("invalid "+key+", falling back to the default", "value", v, "default", def)
+		n = def
+	}
+	return time.Duration(n) * time.Second
+}
+
+// newMilterServer is the milter listener's server. The timeouts bound a
+// connection that stops talking; the library also refuses packets over
+// 1 MiB, so a peer cannot make it allocate more.
+func newMilterServer(c config) *milter.Server {
+	return &milter.Server{
+		NewMilter:    func() milter.Milter { return &milterSession{} },
+		Actions:      milter.OptAddHeader,
+		ReadTimeout:  c.milterRead,
+		WriteTimeout: c.milterWrite,
+	}
 }
 
 func envOrDefault(key, def string) string {
@@ -384,14 +419,11 @@ func main() {
 		"metrics", cfg.metricsAddr,
 		"action", cfg.action,
 		"mf_sender", cfg.mfSender,
+		"read_timeout", cfg.milterRead.String(),
+		"write_timeout", cfg.milterWrite.String(),
 	)
 
-	server := &milter.Server{
-		NewMilter: func() milter.Milter {
-			return &milterSession{}
-		},
-		Actions: milter.OptAddHeader,
-	}
+	server := newMilterServer(cfg)
 
 	ln, err := net.Listen("tcp", cfg.listenAddr)
 	if err != nil {

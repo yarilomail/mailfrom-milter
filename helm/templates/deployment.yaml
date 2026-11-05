@@ -36,6 +36,10 @@ spec:
               value: "0.0.0.0:{{ .Values.milterPort }}"
             - name: METRICS_ADDR
               value: "0.0.0.0:{{ .Values.metricsPort }}"
+            - name: MILTER_READ_TIMEOUT_SECONDS
+              value: {{ .Values.milterReadTimeoutSeconds | quote }}
+            - name: MILTER_WRITE_TIMEOUT_SECONDS
+              value: {{ .Values.milterWriteTimeoutSeconds | quote }}
             - name: MF_ACTION
               value: "{{ .Values.MF_ACTION }}"
             - name: REJECT_CODE
