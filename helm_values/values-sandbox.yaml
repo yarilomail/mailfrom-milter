@@ -3,8 +3,8 @@ image:
   tag: "581c42e"
   pullPolicy: Always
 
-imagePullSecrets:
-  - name: ghcr2-pull-secret
+# The image is public; the stand namespace has no pull secret.
+imagePullSecrets: []
 
 replicaCount: 1
 
@@ -28,6 +28,7 @@ resources:
 
 nodeSelector: {}
 
+# No credentials Secret on the stand; the relay's sender checks cover it.
 postDeployTest:
-  enabled: true
+  enabled: false
   credentialsSecret: "relay-mailfrom-creds"
