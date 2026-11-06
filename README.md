@@ -262,10 +262,12 @@ docker run --rm -p 10031:10031 -e MF_ACTION=accept -e LOG_LEVEL=debug mailfrom-m
 
 Every push to `main` triggers lint → test → build:
 
-| Trigger | Image tags | Release |
-|:---|:---|:---|
-| Push to `main` | `<sha>` + `latest` | — |
-| Push to `main` with new `appVersion` in `helm/Chart.yaml` | `<sha>` + `latest` + `v{appVersion}` | GitHub Release created automatically |
+| Trigger | GHCR tags | Docker Hub tags | Release |
+|:---|:---|:---|:---|
+| Push to `main` | `<sha>` + `latest` | `latest` | — |
+| Push to `main` with new `appVersion` in `helm/Chart.yaml` | `<sha>` + `latest` + `v{appVersion}` | `latest` + `v{appVersion}` | GitHub Release created automatically |
+
+GHCR is CI's working set; Docker Hub keeps releases and `latest` only.
 
 The sandbox values file (`helm_values/values-sandbox.yaml`) is always updated with the short SHA of the latest build.
 
