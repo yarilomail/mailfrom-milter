@@ -39,7 +39,7 @@ For every authenticated session the milter performs two checks:
 
 | Flag | Check | Values |
 |:---|:---|:---|
-| `flag_check_auth` | SASL username domain vs `MAIL FROM` domain | `pass` / `fail` |
+| `flag_check_auth` | the SASL login may send as `MAIL FROM` (with the alias table), or its domain is the `MAIL FROM` domain (without it) | `pass` / `fail` |
 | `flag_check_data` | `MAIL FROM` domain vs `From:` header domain | `pass` / `fail` |
 
 ---
@@ -130,14 +130,16 @@ milter_default_action = accept
 
 **`mailfrom_connections_total`** — counter, total SMTP connections accepted.
 
+**`mailfrom_sender_lookups_total`** — counter, owner lookups of a `MAIL FROM` that is not the login, by `source`: `cache`, `db`, `error`.
+
 **`mailfrom_messages_total`** — counter, SMTP messages processed.
 
 Labels:
 
 | Label | Values | Description |
 |:---|:---|:---|
-| `action` | `accept` / `reject` / `discard` / `quarantine` | Final disposition |
-| `check_auth` | `pass` / `fail` / `skip` | SASL username domain vs `MAIL FROM` domain |
+| `action` | `accept` / `reject` / `discard` / `quarantine` / `tempfail` | Final disposition; `tempfail` when the owner lookup failed |
+| `check_auth` | `pass` / `fail` / `skip` | The SASL login may send as `MAIL FROM` |
 | `check_data` | `pass` / `fail` / `skip` | `MAIL FROM` domain vs `From:` header domain |
 
 `skip` means the check was not reached (unauthenticated session, or action decided before the check ran).
@@ -158,6 +160,11 @@ rate(mailfrom_messages_total{action="reject"}[5m])
 | `METRICS_ADDR` | `0.0.0.0:8081` | TCP address for `/healthz`, `/readyz`, `/metrics` |
 | `MF_ACTION` | `reject` | `reject` / `discard` / `quarantine_header` / `accept` |
 | `REJECT_CODE` | `421` | SMTP reply code for `reject` action: `421` (temp) or `550` (perm) |
+| `SENDER_DB_DSN` | — | MySQL DSN (go-sql-driver) of the alias table. Set, `flag_check_auth` passes when `MAIL FROM` is the login, or an active `alias` row for `MAIL FROM` names the login in `goto` (a list counts, a `goto` that is another alias is not followed, a catch-all gives nothing). A failed lookup tempfails the message |
+| `SENDER_QUERY` | `SELECT goto FROM alias WHERE address = ? AND active = 1` | The owners query; one `?`, comma-separated `goto` |
+| `SENDER_CACHE_SIZE` | `10000` | Addresses kept in the owner cache (LRU); only `MAIL FROM` that is not the login is looked up |
+| `SENDER_CACHE_TTL_SECONDS` / `SENDER_CACHE_MISS_TTL_SECONDS` | `60` / `10` | How long a found and a not-found address are kept |
+| `SENDER_DB_TIMEOUT_SECONDS` | `2` | Deadline of one lookup |
 | `MF_SENDER_ADD` | `no` | Set to `yes` to add `X-MF-Envelope-From` on accepted authenticated messages (`reject` and `discard` actions only) |
 | `MILTER_READ_TIMEOUT_SECONDS` | `3600` | A milter connection silent this long is closed; Postfix keeps one per SMTP session and is silent on it while the client sends |
 | `MILTER_WRITE_TIMEOUT_SECONDS` | `60` | A reply Postfix does not take this long closes the connection |

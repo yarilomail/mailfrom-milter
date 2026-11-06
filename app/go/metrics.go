@@ -23,13 +23,19 @@ var (
 	// metricMessages counts processed SMTP messages by outcome.
 	//
 	// Labels:
-	//   action     — "accept" | "reject" | "discard" | "quarantine"
+	//   action     — "accept" | "reject" | "discard" | "quarantine" | "tempfail"
 	//   check_auth — "pass" | "fail" | "skip" (skip = unauthenticated or not reached)
 	//   check_data — "pass" | "fail" | "skip"
 	metricMessages = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "mailfrom_messages_total",
 		Help: "SMTP messages processed by the milter, labeled by outcome.",
 	}, []string{"action", "check_auth", "check_data"})
+
+	// metricSenderLookups counts owner lookups by source: cache, db, error.
+	metricSenderLookups = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "mailfrom_sender_lookups_total",
+		Help: "Owner lookups of MAIL FROM addresses, labeled by where the answer came from.",
+	}, []string{"source"})
 
 	// metricConnections counts total SMTP connections accepted by the milter.
 	metricConnections = promauto.NewCounter(prometheus.CounterOpts{

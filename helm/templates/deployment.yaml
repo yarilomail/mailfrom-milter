@@ -46,6 +46,23 @@ spec:
               value: "{{ .Values.REJECT_CODE }}"
             - name: MF_SENDER_ADD
               value: "{{ .Values.MF_SENDER_ADD }}"
+            {{- with .Values.sender.dsnSecret.name }}
+            - name: SENDER_DB_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . | quote }}
+                  key: {{ $.Values.sender.dsnSecret.key | quote }}
+            - name: SENDER_QUERY
+              value: {{ $.Values.sender.query | quote }}
+            - name: SENDER_CACHE_SIZE
+              value: {{ $.Values.sender.cacheSize | quote }}
+            - name: SENDER_CACHE_TTL_SECONDS
+              value: {{ $.Values.sender.cacheTTLSeconds | quote }}
+            - name: SENDER_CACHE_MISS_TTL_SECONDS
+              value: {{ $.Values.sender.cacheMissTTLSeconds | quote }}
+            - name: SENDER_DB_TIMEOUT_SECONDS
+              value: {{ $.Values.sender.dbTimeoutSeconds | quote }}
+            {{- end }}
             {{- if .Values.logLevel }}
             - name: LOG_LEVEL
               value: "{{ .Values.logLevel }}"

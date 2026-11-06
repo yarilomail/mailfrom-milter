@@ -31,6 +31,21 @@ REJECT_CODE: "421"
 # messages (reject and discard actions only)
 MF_SENDER_ADD: "no"
 
+# Which login may send as which address. With dsnSecret.name set, check A
+# asks the alias table: a login may send as itself or as an address whose
+# active row names it in goto. Empty keeps the domain comparison.
+sender:
+  dsnSecret:
+    # Secret holding a go-sql-driver DSN, e.g. user:pass@tcp(mysql:3306)/db
+    name: ""
+    key: dsn
+  query: "SELECT goto FROM alias WHERE address = ? AND active = 1"
+  cacheSize: 10000
+  cacheTTLSeconds: 60
+  cacheMissTTLSeconds: 10
+  # A lookup over this tempfails the message.
+  dbTimeoutSeconds: 2
+
 # Set to "debug" to enable verbose per-message logging
 logLevel: ""
 

@@ -15,10 +15,16 @@
 //	                (default: 421)
 //	MF_SENDER_ADD     — Set to "yes" to add X-MF-Envelope-From header on accepted
 //	                authenticated messages (reject and discard actions only)
+//	SENDER_DB_DSN — MySQL DSN of the alias table; set, check A asks whether the
+//	                login may send as MAIL FROM instead of comparing domains
+//	SENDER_QUERY  — the owners query (default: defaultSenderQuery)
+//	SENDER_CACHE_SIZE, SENDER_CACHE_TTL_SECONDS, SENDER_CACHE_MISS_TTL_SECONDS,
+//	SENDER_DB_TIMEOUT_SECONDS — the owner cache and the query deadline
 //	LOG_LEVEL     — Set to "debug" for verbose per-message logging
 package main
 
 import (
+	"database/sql"
 	"errors"
 	"log/slog"
 	"net"
@@ -32,6 +38,7 @@ import (
 	"time"
 
 	"github.com/0kaba0hub/go-milter"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 // ---------------------------------------------------------------------------
@@ -53,6 +60,11 @@ const (
 	defaultMilterRead  = 3600
 	defaultMilterWrite = 60
 
+	defaultSenderCacheSize = 10000
+	defaultSenderTTL       = 60
+	defaultSenderMissTTL   = 10
+	defaultSenderDBTimeout = 2
+
 	headerEnvelopeFrom = "X-MF-Envelope-From"
 	headerFrom         = "X-MF-From"
 	headerQuarantine   = "X-MF-Quarantine"
@@ -66,6 +78,13 @@ type config struct {
 	mfSender    bool
 	milterRead  time.Duration
 	milterWrite time.Duration
+
+	senderDSN       string
+	senderQuery     string
+	senderCacheSize int
+	senderTTL       time.Duration
+	senderMissTTL   time.Duration
+	senderTimeout   time.Duration
 }
 
 func loadConfig() config {
@@ -77,6 +96,13 @@ func loadConfig() config {
 		mfSender:    strings.ToLower(os.Getenv("MF_SENDER_ADD")) == "yes",
 		milterRead:  seconds("MILTER_READ_TIMEOUT_SECONDS", defaultMilterRead),
 		milterWrite: seconds("MILTER_WRITE_TIMEOUT_SECONDS", defaultMilterWrite),
+
+		senderDSN:       os.Getenv("SENDER_DB_DSN"),
+		senderQuery:     envOrDefault("SENDER_QUERY", defaultSenderQuery),
+		senderCacheSize: count("SENDER_CACHE_SIZE", defaultSenderCacheSize),
+		senderTTL:       seconds("SENDER_CACHE_TTL_SECONDS", defaultSenderTTL),
+		senderMissTTL:   seconds("SENDER_CACHE_MISS_TTL_SECONDS", defaultSenderMissTTL),
+		senderTimeout:   seconds("SENDER_DB_TIMEOUT_SECONDS", defaultSenderDBTimeout),
 	}
 	switch cfg.action {
 	case actionReject, actionDiscard, actionQuarantineHeader, actionDunno:
@@ -101,6 +127,17 @@ func seconds(key string, def int) time.Duration {
 		n = def
 	}
 	return time.Duration(n) * time.Second
+}
+
+// count reads a whole number above zero, as seconds does.
+func count(key string, def int) int {
+	v := envOrDefault(key, strconv.Itoa(def))
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		slog.Warn("invalid "+key+", falling back to the default", "value", v, "default", def)
+		n = def
+	}
+	return n
 }
 
 // newMilterServer is the milter listener's server. The timeouts bound a
@@ -139,6 +176,10 @@ func debugf(msg string, args ...any) {
 // ---------------------------------------------------------------------------
 
 var cfg config
+
+// senders answers whether a login may send as an address; nil keeps the
+// domain comparison.
+var senders *senderCache
 
 const (
 	checkPass = "pass"
@@ -202,10 +243,21 @@ func (s *milterSession) MailFrom(from string, m *milter.Modifier) (milter.Respon
 		return milter.RespAccept, nil
 	}
 
-	// Check A: authUser domain vs envelopeFrom domain.
-	authDomain := extractDomain(s.authUser)
-	envDomain := extractDomain(s.envelopeFrom)
-	if strings.EqualFold(authDomain, envDomain) {
+	// Check A: the login may send as MAIL FROM (with the alias table), or
+	// their domains are equal (without it).
+	if senders != nil {
+		ok, err := mayUseFor(senders, s.authUser, s.envelopeFrom)
+		if err != nil {
+			slog.Error("sender lookup failed, tempfail", "auth_user", s.authUser,
+				"envelope_from", s.envelopeFrom, "err", err)
+			recordMessage("tempfail", checkSkip, checkSkip)
+			return milter.RespTempFail, nil
+		}
+		s.flagCheckAuth = checkFail
+		if ok {
+			s.flagCheckAuth = checkPass
+		}
+	} else if strings.EqualFold(extractDomain(s.authUser), extractDomain(s.envelopeFrom)) {
 		s.flagCheckAuth = checkPass
 	} else {
 		s.flagCheckAuth = checkFail
@@ -422,6 +474,19 @@ func main() {
 		"read_timeout", cfg.milterRead.String(),
 		"write_timeout", cfg.milterWrite.String(),
 	)
+
+	if cfg.senderDSN != "" {
+		db, err := sql.Open("mysql", cfg.senderDSN)
+		if err != nil {
+			slog.Error("sender database", "err", err)
+			os.Exit(1)
+		}
+		defer func() { _ = db.Close() }()
+		senders = newSenderCache(&sqlOwners{db: db, query: cfg.senderQuery},
+			cfg.senderCacheSize, cfg.senderTTL, cfg.senderMissTTL, cfg.senderTimeout)
+	}
+	slog.Info("sender check", "alias_table", senders != nil, "cache_size", cfg.senderCacheSize,
+		"ttl", cfg.senderTTL.String(), "miss_ttl", cfg.senderMissTTL.String())
 
 	server := newMilterServer(cfg)
 
